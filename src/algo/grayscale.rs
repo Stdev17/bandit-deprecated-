@@ -7,7 +7,7 @@ fn gray(x: f32, y: f32, z: f32) -> f32 {
     } else {
         csrgb = 12.92 * clin;
     }
-    return csrgb;
+    return csrgb * 255.0;
 }
 
 #[inline]
@@ -21,21 +21,50 @@ fn clamp_u8 (x: f32) -> u8 {
     }
 }
 
-pub fn set(mut b: Vec<u8>) -> Vec<u8> {
-    let mut res: Vec<u8> = Vec::new();
+pub fn set(b: Vec<u8>) -> Vec<u8> {
+    let mut res: Vec<u8> = vec![0; b.len()];
+    #[warn(unused_assignments)]
     let mut calc: u8 = 0;
     println!("{}", b.len());
-    for i in 0..((b.len() as i32 - 1) / 4 + 1) {
+    /*
+    for i in 0..depth {
+        let a = b.len() as i32/depth;
+        for j in 0..a+1 {
+            if i*a+j >= b.len() as i32 {
+                break;
+            }
+            res[(i*a+j) as usize] = b[(i*(2-a)+j) as usize];
+        }
+    }
+    */
+    res[0] = b[0];
+    for i in 1..((b.len() as i32 - 1) / 3 + 1) {
+        if b.len() as i32 > i*3-2 {
+            res[(i*3-2) as usize] = b[(i*3-2) as usize];
+        }
+        if b.len() as i32 > i*3 {
+            res[(i*3-1) as usize] = b[(i*3-1) as usize];
+        }
+        if b.len() as i32 > i*3 {
+            res[(i*3) as usize] = b[(i*3) as usize];
+        }
+
+    }
+    /*
+            
         calc = clamp_u8(gray(b[(i*4) as usize] as f32, b[(i*4+1) as usize] as f32, b[(i*4+2) as usize] as f32));
-        /*
+        
         res.push(calc);
         res.push(calc);
         res.push(calc);
-        res.push(b[i*4+3]);
-        */
+        if b.len() as i32 > i*4+3 {
+            res.push(b[(i*4+3) as usize]);
+        }
+        
         b[(i*4) as usize] = calc;
         b[(i*4+1) as usize] = calc;
         b[(i*4+2) as usize] = calc;
-    }
+    */
+    
     return res;
 }
