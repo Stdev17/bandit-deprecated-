@@ -1,9 +1,6 @@
 //extern crate image;
-use std::time::{Instant};
-//use image::GenericImageView;
-//use std::{fs, mem};
-use std::fs;
-use std::io::{BufReader, BufRead, BufWriter, Write};
+mod img;
+use img::parse::readpng;
 
 fn main() {
     // Use the open function to load an image from a Path.
@@ -12,7 +9,7 @@ fn main() {
 }
 
 fn reader() {
-    let now = Instant::now();
+    
     /*
     let img = image::open("resources/kokkoro2.png").unwrap();
 
@@ -25,35 +22,31 @@ fn reader() {
 
     // Write the contents of this image to the Writer in PNG format.
     img.save("test.png").unwrap();
-    println!("{}", now.elapsed().as_micros());
 
     //own coded
     now = Instant::now();
-    */
-    let s = "dkdkdkdkdkdbcvckdkdkdk";
-
-    let mut source = BufReader::new(fs::File::open("resources/kokkoro2.png").unwrap());
-    //let mut b: [u8; 4] = unsafe { mem::MaybeUninit::uninit().assume_init() };
-    let mut b: Vec<u8> = Vec::new();
-    let mut m: usize;
     
-    loop {
-        m = source.read_until(b'-', &mut b).expect("");
-        if m == 0 {
-            break
-        }
-    }
-    
-    //println!("{:?}", f);
-    println!("{}", b.len());
-    println!("{}", now.elapsed().as_micros());
 
-
-    let mut dest = BufWriter::new(fs::File::create("test.png").unwrap());
-    for i in 0..b.len() {
+    // PNG header
+    for i in 0..8 {
         dest.write(&[b[i]]).unwrap();
     }
+    // IHDR Chunk
+    for i in 8..33 {
+        dest.write(&[b[i]]).unwrap();
+    }
+
+    for i in (33..b.len()-4).step_by(4) {
+        let g: u8 = (gray(b[i], b[i+1], b[i+2])*255.0) as u8;
+        dest.write(&[g, g, g, b[i+3]]).unwrap();
+    }
+    for i in b.len()-4..b.len() {
+        dest.write(&[b[i]]).unwrap();
+    }
+
     dest.flush().unwrap();
 
     println!("{}", now.elapsed().as_micros());
+    */
+    readpng();
 }
