@@ -1,6 +1,7 @@
 //extern crate image;
 mod img;
 use img::parse::readpng;
+mod algo;
 
 fn main() {
     // Use the open function to load an image from a Path.
