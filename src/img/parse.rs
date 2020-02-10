@@ -3,10 +3,11 @@ use std::time::{Instant};
 //use image::GenericImageView;
 //use std::{fs, mem};
 use std::{fs, str};
+use std::fs::OpenOptions;
 use std::io::{BufReader, Read, BufWriter, Write};
 use std::string::String;
 use crate::algo::grayscale::set;
-use crc::crc32;
+use crate::img::cnc;
 use flate2::Compression;
 use flate2::write::ZlibEncoder;
 use flate2::read::ZlibDecoder;
@@ -17,6 +18,10 @@ fn type_of<T>(_: T) -> &'static str {
     type_name::<T>()
 }
 */
+#[link(name = "gcc")]
+extern {
+    pub fn crc(buf: *mut Vec<u8>, len: i32, chk: i32) -> u32;
+}
 
 struct Chunk {
     length: i32,  // chunk data length
@@ -48,14 +53,14 @@ fn u_int32_to_int(buf: &[u8]) -> i32 {
 
 pub fn readpng() {
     let now = Instant::now();
-    let mut source = BufReader::with_capacity(2048, fs::File::open("resources/kokkoro2.png").unwrap());
-    let mut dest = BufWriter::with_capacity(1024, fs::File::create("test.png").unwrap());
-    println!("{}", now.elapsed().as_micros());
+    let mut source = BufReader::with_capacity(4096, fs::File::open("resources/kokkoro2.png").unwrap());
+    let mut dest = BufWriter::new(fs::File::create("test.png").unwrap());
+
     //let mut b: [u8; 4] = unsafe { mem::MaybeUninit::uninit().assume_init() };
     let mut header: Vec<u8> = vec![0; 8];
-    println!("{}", now.elapsed().as_micros());
+
     source.read_exact(&mut header).unwrap();
-    println!("{}", now.elapsed().as_micros());
+
     dest.write_all(&header).unwrap();
     
     /*
@@ -68,10 +73,11 @@ pub fn readpng() {
         }
     }
     */
-    println!("{}", now.elapsed().as_micros());
+
+    let mut m: Vec<u8> = Vec::new();
     
     let mut ihdr = Chunk::new();
-    Chunk::populate(&mut ihdr, &mut source, &mut dest);
+    Chunk::populate(&mut ihdr, &mut source, &mut dest, &mut m);
     
     let mut png = PNG::new();
     PNG::parse_ihdr(&mut png, &mut ihdr);
@@ -81,7 +87,7 @@ pub fn readpng() {
 
     loop {
         let mut ch = Chunk::new();
-        Chunk::populate(&mut ch, &mut source, &mut dest);
+        Chunk::populate(&mut ch, &mut source, &mut dest, &mut m);
         let chk = &ch.c_type.clone();
         //println!("{}", &chk);
         PNG::add(&mut png, ch);
@@ -92,77 +98,90 @@ pub fn readpng() {
 
     println!("{}", now.elapsed().as_micros());
 
-    let mut m: Vec<u8> = Vec::new();
-    let mut cr: Vec<u8> = Vec::new();
+    /*
     for i in png.chunks.iter_mut() {
         if i.c_type == "IDAT" {
-            m.append(&mut i.data);
-        }
-        if i.c_type == "IEND" {
-            
-            let mut idat: Vec<u8> = vec![73, 68, 65, 84];
-            idat.append(&mut m.clone());
-            let mut c: u32 = crc32::checksum_ieee(&idat);
-            //println!("{:X}", c);
-            //assert_eq!(c, 0x21C8871F);
-            
-            let mut v: Vec<u8> = vec![0; 4];
-            for j in 0..4 {
-                v[j] = (c%256) as u8;
-                c /= 256;
+            if cnt == 0 {
+                m = 
             }
-            i.crc32 = v.clone();
-            cr = v.clone();
-            v = vec![0; 4];
-            let mut l: u32 = m.len() as u32;
-            i.length = l as i32;
-            for j in 0..4 {
-                v[j] = (l%256) as u8;
-                l /= 256;
-            }
-            for i in 0..v.len() {
-                dest.write(&[v[3-i]]).unwrap();
-            }
-            idat = vec![73, 68, 65, 84];
-            for i in 0..idat.len() {
-                dest.write(&[idat[i]]).unwrap();
-            }
-            
+            //m.append(&mut i.data);
         }
     }
+    */
+    let num: i32 = m.len() as i32;
+    let mut c: u32 = 0;
+    unsafe {
+        c = crc(&mut m as *mut Vec<u8>, num, 1);
+    }
+    //let mut c: u32 = cnc::CRC::crc(cnc::CRC::new(), &mut m);//crc32::checksum_ieee(&m);
+    //let mut y: Vec<u8> = vec![73, 68, 65, 84];
+    //println!("{:X}", cnc::CRC::crc(cnc::CRC::new(), &mut y));
+    //assert_eq!(c, 0x21C8871F);
     println!("{}", now.elapsed().as_micros());
-
-    for i in 0..m.len() {
-        dest.write(&[m[i]]).unwrap();
-    }
-
-    for i in 0..cr.len() {
-        dest.write(&[cr[3-i]]).unwrap();
-    }
-    let no: Vec<u8> = vec![0, 0, 0, 0];
-    for i in 0..no.len() {
-        dest.write(&[no[i]]).unwrap();
-    }
-    let iend: Vec<u8> = vec![73, 69, 78, 68];
-    for i in 0..iend.len() {
-        dest.write(&[iend[i]]).unwrap();
-    }
-    let mut c: u32 = crc32::checksum_ieee(&iend);
     let mut v: Vec<u8> = vec![0; 4];
     for j in 0..4 {
         v[j] = (c%256) as u8;
         c /= 256;
     }
-    for i in 0..v.len() {
+    let cr = v.clone();
+    let mut l: u32 = m.len() as u32;
+    for j in 0..4 {
+        v[j] = (l%256) as u8;
+        l /= 256;
+    }
+    for i in 0..4 {
         dest.write(&[v[3-i]]).unwrap();
     }
+    v = vec![73, 68, 65, 84];
+    for i in 0..4 {
+        dest.write(&[v[i]]).unwrap();
+    }
+    println!("{}", now.elapsed().as_micros());
+
+    dest.flush().unwrap();
+
+    
+    let options = OpenOptions::new()
+    .append(true)
+    .write(true)
+    .open("test.png");
+    let file = match options {
+        Ok(file) => file,
+        Err(..) => panic!("at the Disco"),
+    };
+    let mut big = BufWriter::with_capacity(4096, &file);
+
+    big.write(&m).unwrap();
+    big.flush().unwrap();
+
+    for i in 0..4 {
+        dest.write(&[cr[3-i]]).unwrap();
+    }
+    v = vec![0; 4];
+    for i in 0..4 {
+        dest.write(&[v[i]]).unwrap();
+    }
+    v = vec![73, 69, 78, 68];
+    for i in 0..4 {
+        dest.write(&[v[i]]).unwrap();
+    }
+    
+    let mut c: u32 = cnc::CRC::crc(cnc::CRC::new(), &mut v);//crc32::checksum_ieee(&v);
+    v = vec![0; 4];
+    for j in 0..4 {
+        v[j] = (c%256) as u8;
+        c /= 256;
+    }
+    for i in 0..4 {
+        dest.write(&[v[3-i]]).unwrap();
+    }
+
+    dest.flush().unwrap();
 
     //println!("{:?}", f);
     //println!("{}", &png.chunks.len());
     
     println!("{}", now.elapsed().as_micros());
-
-    dest.flush().unwrap();
     /*
     let mut chk = BufWriter::new(fs::File::create("testcrc.txt").unwrap());
     for i in 0..png.chunks[5].data.len() {
@@ -175,44 +194,56 @@ pub fn readpng() {
 
 impl Chunk {
     // Populate will read bytes from the reader and populate a chunk.
-    fn populate(&mut self, s: &mut BufReader<std::fs::File>, dest: &mut BufWriter<std::fs::File>) {
+    fn populate(&mut self, s: &mut BufReader<std::fs::File>, dest: &mut BufWriter<std::fs::File>, m: &mut Vec<u8>) {
         
         // Four byte buffer.
         let mut buf: Vec<u8> = vec![0; 4];
-
+        let mut buf2 = buf.clone();
         // Read first four bytes == chunk length.
         s.read_exact(&mut buf).unwrap();
 
         //println!("{:?}", &buf);
         // Convert bytes to int.
         // c.length = int(binary.BigEndian.Uint32(buf))
-        dest.write_all(&buf).unwrap();
         self.length = u_int32_to_int(&buf[0..4]);
-        // Read second four bytes == chunk type.
-        s.read_exact(&mut buf).unwrap();
         
-        self.c_type = str::from_utf8(&buf).unwrap().to_string();
+        // Read second four bytes == chunk type.
+        s.read_exact(&mut buf2).unwrap();
+        
+        self.c_type = str::from_utf8(&buf2).unwrap().to_string();
         if self.c_type != "IEND" && self.c_type != "IDAT" {
-            dest.write_all(&buf).unwrap();
+            for i in 0..4 {
+                dest.write(&[buf[i]]).unwrap();
+            }
+            for i in 0..4 {
+                dest.write(&[buf2[i]]).unwrap();
+            }
         }
 
         // Read chunk data.
+
         
         let mut tmp: Vec<u8> = vec![0; self.length as usize];
         s.read_exact(&mut tmp).unwrap();
-        self.data = tmp;
+        if self.c_type != "IDAT" {
+            self.data = tmp;
+        } else {
+            m.append(&mut tmp);
+        }
+
         if self.c_type != "IEND" && self.c_type != "IDAT" {
             dest.write_all(&self.data).unwrap();
         }
 
         // Read CRC32 hash
-        let mut buf3: Vec<u8> = vec![0; 4];
         // Read second four bytes == chunk type.
-        s.read_exact(&mut buf3).unwrap();
-        self.crc32 = buf3;
+        s.read_exact(&mut buf).unwrap();
+        self.crc32 = buf;
         // We don't really care about checking the hash.
         if self.c_type != "IEND" && self.c_type != "IDAT" {
-            dest.write_all(&self.crc32).unwrap();
+            for i in 0..4 {
+                dest.write(&[self.crc32[i]]).unwrap();
+            }
         }
     }
 
