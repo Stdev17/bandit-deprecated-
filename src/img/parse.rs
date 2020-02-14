@@ -77,7 +77,7 @@ pub fn readpng() {
     let mut m: Vec<u8> = Vec::new();
     
     let mut ihdr = Chunk::new();
-    Chunk::populate(&mut ihdr, &mut source, &mut dest, &mut m);
+    Chunk::populate(&mut ihdr, &mut source, &mut dest, &mut m, &now);
     
     let mut png = PNG::new();
     PNG::parse_ihdr(&mut png, &mut ihdr);
@@ -87,7 +87,7 @@ pub fn readpng() {
 
     loop {
         let mut ch = Chunk::new();
-        Chunk::populate(&mut ch, &mut source, &mut dest, &mut m);
+        Chunk::populate(&mut ch, &mut source, &mut dest, &mut m, &now);
         let chk = &ch.c_type.clone();
         //println!("{}", &chk);
         PNG::add(&mut png, ch);
@@ -194,7 +194,7 @@ pub fn readpng() {
 
 impl Chunk {
     // Populate will read bytes from the reader and populate a chunk.
-    fn populate(&mut self, s: &mut BufReader<std::fs::File>, dest: &mut BufWriter<std::fs::File>, m: &mut Vec<u8>) {
+    fn populate(&mut self, s: &mut BufReader<std::fs::File>, dest: &mut BufWriter<std::fs::File>, m: &mut Vec<u8>, now: &std::time::Instant) {
         
         // Four byte buffer.
         let mut buf: Vec<u8> = vec![0; 4];
@@ -219,7 +219,7 @@ impl Chunk {
                 dest.write(&[buf2[i]]).unwrap();
             }
         }
-
+        println!("{}", self.c_type);
         // Read chunk data.
 
         
@@ -245,6 +245,8 @@ impl Chunk {
                 dest.write(&[self.crc32[i]]).unwrap();
             }
         }
+
+        println!("{}", now.elapsed().as_micros());
     }
 
     fn new() -> Chunk {
